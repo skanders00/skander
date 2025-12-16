@@ -11,6 +11,7 @@ pipeline {
         // Update your docker hub username if different
         IMAGE_NAME = 'skander1174/skander-projet:latest'
         DOCKER_CREDENTIALS_ID = 'docker-hub-skander'
+        KUBECONFIG = '/var/jenkins_home/.kube/config'
     }
 
     stages {
