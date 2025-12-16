@@ -4,6 +4,7 @@ pipeline {
     tools {
         // Name must match Global Tool Configuration in Jenkins
         maven 'M2_HOME'
+        jdk 'JDK17'
     }
 
     environment {
