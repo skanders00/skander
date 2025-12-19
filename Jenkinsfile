@@ -15,7 +15,7 @@ pipeline {
           KUBERNETES_SERVICE_HOST = ""
         KUBERNETES_SERVICE_PORT = ""
        
-        KUBECONFIG = "/var/lib/jenkins/.kube/config"
+    
     }
 
     stages {
