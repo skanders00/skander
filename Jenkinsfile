@@ -215,17 +215,21 @@ spec:
       targetPort: 8089
       nodePort: 30080
 '''
-echo 'Applying Deployments...'
+
                 
-                // 1. Ensure the namespace exists first
-                sh 'kubectl create namespace devops || true'
+              def kubeConfig = "/var/lib/jenkins/.kube/config"
 
-                // 2. Use 'env -u' to prevent kubectl from talking to Jenkins (8080)
-                sh 'env -u KUBERNETES_SERVICE_HOST -u KUBERNETES_SERVICE_PORT kubectl apply -f mysql-deployment.yaml -n devops'
-                sh 'env -u KUBERNETES_SERVICE_HOST -u KUBERNETES_SERVICE_PORT kubectl apply -f spring-deployment.yaml -n devops'
+            echo 'Applying Deployments...'
+            
+            // 1. Ensure the namespace exists
+            sh "kubectl --kubeconfig=${kubeConfig} create namespace devops || true"
 
-                echo 'Restarting Spring Pods...'
-                sh 'env -u KUBERNETES_SERVICE_HOST -u KUBERNETES_SERVICE_PORT kubectl rollout restart deployment/spring-app -n devops'
+            // 2. Apply files using the explicit config path
+            sh "kubectl --kubeconfig=${kubeConfig} apply -f mysql-deployment.yaml -n devops"
+            sh "kubectl --kubeconfig=${kubeConfig} apply -f spring-deployment.yaml -n devops"
+
+            echo 'Restarting Spring Pods...'
+            sh "kubectl --kubeconfig=${kubeConfig} rollout restart deployment/spring-app -n devops"
             }
         }
     }
