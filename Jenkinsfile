@@ -2,20 +2,21 @@ pipeline {
     agent any
 
     tools {
-        // Name must match Global Tool Configuration in Jenkins
+        // Ensure these match Manage Jenkins -> Tools exactly
         maven 'M2_HOME'
         jdk 'JDK17'
     }
 
     environment {
-        // Update your docker hub username if different
         IMAGE_NAME = 'skander1174/skander-projet:latest'
         DOCKER_CREDENTIALS_ID = 'docker-hub-skander'
-        KUBECONFIG = '/var/jenkins_home/.kube/config'
-          KUBERNETES_SERVICE_HOST = ""
-        KUBERNETES_SERVICE_PORT = ""
-       
-    
+        
+        // --- CORRECTED PATH for Jenkins Service installation ---
+        KUBECONFIG = '/var/lib/jenkins/.kube/config'
+        
+        // --- STOP JENKINS FROM REDIRECTING KUBECTL TO PORT 8080 ---
+        KUBERNETES_SERVICE_HOST = ''
+        KUBERNETES_SERVICE_PORT = ''
     }
 
     stages {
@@ -27,30 +28,16 @@ pipeline {
 
         stage('Build Test') {
             steps {
-                echo 'Running Unit Tests with In-Memory Database...'
-                // Using 'sh' for Linux/Vagrant.
-                // Using '\' for line breaks instead of '^'
-                sh """
-                    mvn clean test \\
-                    -Dspring.datasource.url=jdbc:h2:mem:testdb \\
-                    -Dspring.datasource.driverClassName=org.h2.Driver \\
-                    -Dspring.datasource.username=sa \\
-                    -Dspring.datasource.password= \\
-                    -Dspring.jpa.database-platform=org.hibernate.dialect.H2Dialect
-                """
+                echo 'Running Unit Tests...'
+                sh "mvn clean test -Dspring.datasource.url=jdbc:h2:mem:testdb -Dspring.datasource.driverClassName=org.h2.Driver -Dspring.datasource.username=sa -Dspring.datasource.password= -Dspring.jpa.database-platform=org.hibernate.dialect.H2Dialect"
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                // Ensure 'MVN SONARQUBE' matches Manage Jenkins -> System -> SonarQube Servers
+                // Ensure name matches Manage Jenkins -> System -> SonarQube
                 withSonarQubeEnv('MVN SONARQUBE') {
-                    sh """
-                        mvn sonar:sonar \\
-                        -Dsonar.projectKey=skander-project \\
-                        -Dsonar.projectName="skander-project" \\
-                        -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-                    """
+                    sh "mvn sonar:sonar -Dsonar.projectKey=skander-project -Dsonar.projectName='skander-project'"
                 }
             }
         }
@@ -71,11 +58,9 @@ pipeline {
 
         stage('Docker Push') {
              steps {
-                withCredentials([usernamePassword(credentialsId: "$DOCKER_CREDENTIALS_ID", usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'USER', passwordVariable: 'PASS')]) {
                     echo 'Logging into Docker Hub...'
-                    // Secure login for Linux
                     sh 'echo $PASS | docker login -u $USER --password-stdin'
-                    echo 'Pushing image...'
                     sh "docker push ${IMAGE_NAME}"
                 }
             }
@@ -83,9 +68,9 @@ pipeline {
 
         stage('Deploy Kubernetes') {
             steps {
-                echo 'Generating K8s Manifests...'
-
-                // --- 1. MYSQL DEPLOYMENT ---
+                script {
+                    echo 'Generating Manifests...'
+                           // --- 1. MYSQL DEPLOYMENT ---
                 writeFile file: 'mysql-deployment.yaml', text: '''
 apiVersion: v1
 kind: PersistentVolume
@@ -220,13 +205,13 @@ spec:
       nodePort: 30080
 '''
 
-                
                     echo 'Applying Deployments...'
-                    // Now you can use simple commands because KUBECONFIG is set in 'environment'
+                    // We use --validate=false to bypass the Jenkins networking trap
                     sh 'kubectl create namespace devops || true'
-                    sh 'kubectl apply -f mysql-deployment.yaml -n devops'
-                    sh 'kubectl apply -f spring-deployment.yaml -n devops'
+                    sh 'kubectl apply -f mysql-deployment.yaml -n devops --validate=false'
+                    sh 'kubectl apply -f spring-deployment.yaml -n devops --validate=false'
                     sh 'kubectl rollout restart deployment/spring-app -n devops'
+                }
             }
         }
     }
@@ -236,10 +221,13 @@ spec:
             echo "✔ Pipeline Executed Successfully"
         }
         failure {
-            echo "❌ Pipeline Failed"
+            echo "❌ Pipeline Failed - Check Console Output"
         }
         always {
+            // --- CRITICAL FOR 30GB DISK: Cleanup ---
             sh 'docker logout'
+            sh 'docker image prune -f'
+            cleanWs() 
         }
     }
 }
