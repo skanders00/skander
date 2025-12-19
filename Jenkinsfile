@@ -205,12 +205,25 @@ spec:
       nodePort: 30080
 '''
 
+                  def kconfig = "/var/lib/jenkins/.kube/config"
+                    
+                    // 2. Command to 'clean' the environment so kubectl doesn't look at port 8080
+                    def kfix = "env -u KUBERNETES_SERVICE_HOST -u KUBERNETES_SERVICE_PORT"
+
+                    echo 'Generating Manifests...'
+                    // (Keep your writeFile blocks for mysql and spring here...)
+
                     echo 'Applying Deployments...'
-                    // We use --validate=false to bypass the Jenkins networking trap
-                    sh 'kubectl create namespace devops || true'
-                    sh 'kubectl apply -f mysql-deployment.yaml -n devops --validate=false'
-                    sh 'kubectl apply -f spring-deployment.yaml -n devops --validate=false'
-                    sh 'kubectl rollout restart deployment/spring-app -n devops'
+                    
+                    // Ensure the namespace exists
+                    sh "${kfix} kubectl --kubeconfig=${kconfig} create namespace devops || true"
+
+                    // --- THE FIX: We add --validate=false to skip the Jenkins login trap ---
+                    sh "${kfix} kubectl --kubeconfig=${kconfig} apply -f mysql-deployment.yaml -n devops --validate=false"
+                    sh "${kfix} kubectl --kubeconfig=${kconfig} apply -f spring-deployment.yaml -n devops --validate=false"
+
+                    echo 'Restarting Spring Pods...'
+                    sh "${kfix} kubectl --kubeconfig=${kconfig} rollout restart deployment/spring-app -n devops"
                 }
             }
         }
