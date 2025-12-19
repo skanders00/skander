@@ -12,6 +12,10 @@ pipeline {
         IMAGE_NAME = 'skander1174/skander-projet:latest'
         DOCKER_CREDENTIALS_ID = 'docker-hub-skander'
         KUBECONFIG = '/var/jenkins_home/.kube/config'
+          KUBERNETES_SERVICE_HOST = ""
+        KUBERNETES_SERVICE_PORT = ""
+       
+        KUBECONFIG = "/var/lib/jenkins/.kube/config"
     }
 
     stages {
@@ -217,19 +221,12 @@ spec:
 '''
 
                 
-              def kubeConfig = "/var/lib/jenkins/.kube/config"
-
-            echo 'Applying Deployments...'
-            
-            // 1. Ensure the namespace exists
-            sh "kubectl --kubeconfig=${kubeConfig} create namespace devops || true"
-
-            // 2. Apply files using the explicit config path
-            sh "kubectl --kubeconfig=${kubeConfig} apply -f mysql-deployment.yaml -n devops"
-            sh "kubectl --kubeconfig=${kubeConfig} apply -f spring-deployment.yaml -n devops"
-
-            echo 'Restarting Spring Pods...'
-            sh "kubectl --kubeconfig=${kubeConfig} rollout restart deployment/spring-app -n devops"
+                    echo 'Applying Deployments...'
+                    // Now you can use simple commands because KUBECONFIG is set in 'environment'
+                    sh 'kubectl create namespace devops || true'
+                    sh 'kubectl apply -f mysql-deployment.yaml -n devops'
+                    sh 'kubectl apply -f spring-deployment.yaml -n devops'
+                    sh 'kubectl rollout restart deployment/spring-app -n devops'
             }
         }
     }
